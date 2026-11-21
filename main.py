@@ -13,6 +13,20 @@ AGE_OFFSET_HOURS = 12
 LOOKBACK_HOURS = 48
 MIN_SLOPE_HOURS = 2
 
+# Mature Exophase rates (%) for comparable unlock requirements. See README for
+# the source trophies. These rates inform headroom, not the level at week one.
+ANALOG_RATES = {
+    "complete chapter 1": (82.8, 73.7),
+    "complete chapter 2": (60.8, 45.3),
+    "complete chapter 3": (53.0, 41.4),
+    "complete chapter 4": (48.6,),
+    "complete the final mission": (44.2, 41.4, 67.9, 15.4),
+    "attain 100% completion": (4.0, 3.2),
+    "try each type of activity once": (21.1,),
+    "explore all of leonida": (6.2,),
+    "platinum": (2.7, 2.2),
+}
+
 
 def logit(rate):
     rate = min(99.99, max(0.01, rate))
@@ -41,7 +55,29 @@ def refreshes(history):
     return start, states
 
 
-def project(observations, checkpoint_hour, target_hour):
+def analog_rate(trophy):
+    if trophy["tier"] == "platinum":
+        requirement = "platinum"
+    else:
+        requirement = trophy["description"].strip().casefold().rstrip(".")
+    rates = ANALOG_RATES.get(requirement)
+    return median(rates) if rates else None
+
+
+def analog_adjustment(reference, center, last_value, jumps, horizon_days):
+    if reference is None or horizon_days <= 1:
+        return 0.0
+
+    headroom = max(0.0, logit(reference) - max(center, last_value))
+    # Historical rates tell us there can be room to grow. Attenuate that signal
+    # when GTA VI already gives us multiple observed changes for this trophy.
+    horizon_weight = min(1.0, (horizon_days - 1) / 3)
+    observed_changes = sum(jump > 0 for jump in jumps)
+    headroom_weight = min(1.0, headroom / 3)
+    return 0.6 * horizon_weight * headroom_weight / (1 + observed_changes / 4)
+
+
+def project(observations, checkpoint_hour, target_hour, reference=None):
     last_hour, last_value = observations[-1]
     recent = [
         (hour, value)
@@ -68,7 +104,9 @@ def project(observations, checkpoint_hour, target_hour):
     stale_days = max(0.0, checkpoint_hour - last_hour) / 24
     # Rates can jump on a tracker refresh even when the forecast horizon is short.
     time_scale = 0.35 * math.sqrt(horizon_days + stale_days)
-    spread = min(2.5, math.hypot(0.25 + jump_scale, time_scale))
+    adjustment = analog_adjustment(reference, center, last_value, jumps, horizon_days)
+    center += adjustment
+    spread = min(2.5, math.hypot(0.25 + jump_scale, time_scale, adjustment))
     return [percent(center + z * spread) for z in NORMAL_QUANTILES]
 
 
@@ -87,7 +125,10 @@ def forecast(case):
         ]
         if not observations:
             observations = [(checkpoint_hour, logit(0.01))]
-        quantiles = project(observations, checkpoint_hour, target_hour)
+            reference = None
+        else:
+            reference = analog_rate(trophy)
+        quantiles = project(observations, checkpoint_hour, target_hour, reference)
         rows.append({"id": trophy["id"], "q": quantiles})
     return {"trophies": rows}
 

@@ -40,9 +40,20 @@ tar -tzf _local/makefun/gta6-trophy-kit.tar.gz
 
 この手順は取得・一覧確認のみです。事前に `_local/` を Git の除外対象にし、アーカイブや kit の CLI を自動実行しないでください。
 
-## 初版の実行
+## 予測モデル
 
-`main.py` は Python 3.13 の標準ライブラリで動きます。連続する同一スナップショットをまとめ、トロフィーごとに直近48時間の更新から logit 取得率の傾きを推定します。時間を対数で変換し、更新が少ないほど傾きをゼロに近づけます。更新ごとの変動と予測期間に応じて、中央値の周りに分位点を置きます。
+`main.py` は Python 3.13 の標準ライブラリで動きます。連続する同一スナップショットをまとめ、トロフィーごとに直近48時間の更新から logit 取得率の傾きを推定します。時間を対数で変換し、更新が少ないほど傾きをゼロに近づけます。
+
+予測期間が24時間を超える場合、対応する取得条件があるトロフィーに限り、類似作の取得率を補助情報に使います。類似作の参考値が直近の実測値と傾向予測の両方を上回るとき、中央値を最大0.6 logitだけ上げ、分位点の幅も少し広げます。GTA VI で取得率の変化を多く観測したトロフィーほど補正は小さくなります。参考値は発売後に蓄積した取得率で、発売7日目の実測値は未確認です。
+
+| 参照元 | 対応させた取得条件 |
+| --- | --- |
+| [Red Dead Redemption 2（PS4）](https://www.exophase.com/game/red-dead-redemption-2-psn/trophies/) | 第1〜4章、最終ミッション（Redemption）、100%達成、全種類のミニゲーム、プラチナ |
+| [Assassin’s Creed Shadows（PS5）](https://www.exophase.com/game/assassin-s-creed-shadows-psn/trophies/) | 第1〜3幕、本編終了（Fall of the Shinbakufu） |
+| [Ghost of Yōtei（PS5）](https://www.exophase.com/game/ghost-of-yotei-psn/trophies/) | 本編終了（The Onryō Rests） |
+| [GTA V（PS4・PS5）](https://www.exophase.com/game/grand-theft-auto-v-ps4/trophies/) | PS4版のマップ全域探索、100%達成、プラチナ。PS5版の[最終ミッション](https://www.exophase.com/game/grand-theft-auto-v-psn/trophies/)は他の3作品との中央値に含めます。 |
+
+## Docker で実行
 
 取得済みの kit を展開し、manifest の各ファイルの SHA-256 を照合したうえで、リポジトリのルートから実行します。出力は `_local/makefun/output/` に生成されます。
 
