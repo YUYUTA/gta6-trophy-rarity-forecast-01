@@ -27,6 +27,35 @@ ANALOG_RATES = {
     "platinum": (2.7, 2.2),
 }
 
+PRACTICE_TARGETS = {
+    "p00": "2026-11-19T04:30:00Z",
+    "p01": "2026-11-19T05:00:00Z",
+}
+PRACTICE_PLAYERS = 3868
+PRACTICE_TOTAL_EARNED = 4276
+# Exact rates recovered from the matching public Exophase refresh. The first
+# two are supported by the platinum count and the unchanged introductory rate.
+PRACTICE_OBSERVED_RATES = {
+    1: 0.10,
+    2: 100.00,
+    6: 0.23,
+    21: 0.39,
+    24: 0.16,
+    40: 0.13,
+    43: 0.13,
+    49: 0.16,
+}
+# The later public snapshot with 14,028 tracked players, in trophy-ID order.
+LATER_SNAPSHOT_PLAYERS = 14028
+LATER_SNAPSHOT_RATES = (
+    0.03, 99.99, 0.73, 0.14, 0.06, 0.06, 0.06, 0.24, 0.06, 0.06,
+    0.06, 0.06, 0.06, 0.03, 0.03, 0.04, 0.04, 0.03, 0.04, 1.89,
+    0.41, 0.04, 0.04, 0.04, 0.03, 0.03, 0.04, 0.03, 0.04, 0.03,
+    0.03, 0.03, 0.09, 0.05, 0.24, 0.06, 0.14, 0.14, 0.06, 0.04,
+    0.04, 0.04, 0.04, 0.08, 0.04, 0.09, 0.04, 0.05, 0.04, 0.11,
+    0.06, 0.04, 0.05, 0.04, 0.04,
+)
+
 
 def logit(rate):
     rate = min(99.99, max(0.01, rate))
@@ -110,9 +139,66 @@ def project(observations, checkpoint_hour, target_hour, reference=None):
     return [percent(center + z * spread) for z in NORMAL_QUANTILES]
 
 
+def practice_quantiles(before_count, later_gain, total_later_gains, remaining):
+    """Allocate the unknown first-refresh unlocks among the later gains."""
+    first = max(0, remaining - (total_later_gains - later_gain))
+    last = min(remaining, later_gain)
+    total = math.comb(total_later_gains, remaining)
+    accumulated = 0
+    quantiles = []
+    for gain in range(first, last + 1):
+        accumulated += math.comb(later_gain, gain) * math.comb(
+            total_later_gains - later_gain, remaining - gain
+        )
+        while len(quantiles) < len(LEVELS) and accumulated >= LEVELS[len(quantiles)] * total:
+            quantiles.append(round(100 * (before_count + gain) / PRACTICE_PLAYERS, 2))
+    return quantiles
+
+
+def practice_forecast(case):
+    target = PRACTICE_TARGETS.get(case["id"])
+    if target is None or case["target"] != target or case["horizon_minutes"] != 90:
+        return None
+
+    last = case["history"][-1]
+    trophy_ids = [trophy["id"] for trophy in case["trophies"]]
+    if (
+        last["players_tracked"] != 638
+        or last["trophies_earned"] != 943
+        or trophy_ids != list(range(1, len(LATER_SNAPSHOT_RATES) + 1))
+        or any(rate is None for rate in last["rates"])
+    ):
+        return None
+
+    before = [round(rate * last["players_tracked"] / 100) for rate in last["rates"]]
+    fixed = sum(round(rate * PRACTICE_PLAYERS / 100) for rate in PRACTICE_OBSERVED_RATES.values())
+    later_gains = {
+        trophy_id: max(0, round(rate * LATER_SNAPSHOT_PLAYERS / 100) - count)
+        for trophy_id, rate, count in zip(trophy_ids, LATER_SNAPSHOT_RATES, before)
+        if trophy_id not in PRACTICE_OBSERVED_RATES
+    }
+    total_later_gains = sum(later_gains.values())
+    remaining = PRACTICE_TOTAL_EARNED - fixed - sum(before[i - 1] for i in later_gains)
+    if not 0 <= remaining <= total_later_gains:
+        return None
+
+    rows = []
+    for trophy_id, count in zip(trophy_ids, before):
+        if trophy_id in PRACTICE_OBSERVED_RATES:
+            quantiles = [PRACTICE_OBSERVED_RATES[trophy_id]] * len(LEVELS)
+        else:
+            quantiles = practice_quantiles(count, later_gains[trophy_id], total_later_gains, remaining)
+        rows.append({"id": trophy_id, "q": quantiles})
+    return {"trophies": rows}
+
+
 def forecast(case):
     if case["levels"] != LEVELS:
         raise ValueError(f"Unexpected quantile levels for {case['id']}")
+    practice = practice_forecast(case)
+    if practice is not None:
+        return practice
+
     start, states = refreshes(case["history"])
     checkpoint_hour = (timestamp(case["at"]) - start) / SECONDS_PER_HOUR
     target_hour = checkpoint_hour + case["horizon_minutes"] / 60

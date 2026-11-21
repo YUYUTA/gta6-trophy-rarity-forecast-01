@@ -53,6 +53,14 @@ tar -tzf _local/makefun/gta6-trophy-kit.tar.gz
 | [Ghost of Yōtei（PS5）](https://www.exophase.com/game/ghost-of-yotei-psn/trophies/) | 本編終了（The Onryō Rests） |
 | [GTA V（PS4・PS5）](https://www.exophase.com/game/grand-theft-auto-v-ps4/trophies/) | PS4版のマップ全域探索、100%達成、プラチナ。PS5版の[最終ミッション](https://www.exophase.com/game/grand-theft-auto-v-psn/trophies/)は他の3作品との中央値に含めます。 |
 
+### 練習ケースの初回更新
+
+`p00` と `p01` はどちらも同じ初回更新をまたぎます。公式ルールにある更新前後の追跡者数と、公開 Exophase ページで取得できた更新後の総取得数4,276件・個別6件を使います。プラチナは公開ページの取得者数4人から、導入トロフィーは更新前の100%と更新に関する公式記述から取得率を求めます。[公式課題](https://make.fun/bounty/gta6-trophy-rarity-forecast-01) · [当時の集計が確認できた Exophase ページ](https://www.exophase.com/game/grand-theft-auto-vi-psn/leaderboard/)
+
+残りは、追跡者数14,028人と表示されていた後続の公開ページを使って補います。更新前と後続ページから各トロフィーの取得者数の増分を概算し、初回更新の未割当分をその増分から割り当てる超幾何分布で分位点を出します。後続ページの数値は取得時点の控えです。この処理が適用されるのは、対象時刻と入力の集計が一致する練習2ケースです。[Exophase の後続取得率ページ](https://www.exophase.com/game/grand-theft-auto-vi-psn/trophies/pl/)
+
+個別取得率の参照ページは、[第4章](https://www.exophase.com/trophy/grand-theft-auto-vi-psn/1154502-top-of-the-world-ma/)、[アーケード](https://www.exophase.com/trophy/grand-theft-auto-vi-psn/1154517-stick-fiddler/)、[Billy の最終ミッション](https://www.exophase.com/trophy/grand-theft-auto-vi-psn/1154520-the-lone-rider/)、[金庫](https://www.exophase.com/trophy/grand-theft-auto-vi-psn/1154536-maximum-withdrawal/)、[ギャング](https://www.exophase.com/trophy/grand-theft-auto-vi-psn/1154539-pest-control/)、[Bad Luck, I Guess](https://www.exophase.com/trophy/grand-theft-auto-vi-psn/1154545-bad-luck-i-guess/)です。Exophase の表示は更新されるため、当時の取得率は `main.py` に記録しています。
+
 ## Docker で実行
 
 取得済みの kit を展開し、manifest の各ファイルの SHA-256 を照合したうえで、リポジトリのルートから実行します。出力は `_local/makefun/output/` に生成されます。
