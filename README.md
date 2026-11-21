@@ -1,5 +1,9 @@
 # GTA VI トロフィー取得率予測
 
+[![make.fun · gta6-trophy-rarity-forecast-01](https://make.fun/badge/gta6-trophy-rarity-forecast-01.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)
+[![rank](https://make.fun/badge/gta6-trophy-rarity-forecast-01/YUYUTA/gta6-trophy-rarity-forecast-01/rank.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)
+[![reward](https://make.fun/badge/gta6-trophy-rarity-forecast-01/YUYUTA/gta6-trophy-rarity-forecast-01/reward.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)
+
 [make.fun の公式課題](https://make.fun/bounty/gta6-trophy-rarity-forecast-01)向けの作業リポジトリです。Exophase の時点別スナップショットを使い、各トロフィーを取得済みの**追跡対象プレイヤーの割合**を予測します。全プレイヤー数や取得人数の予測ではありません。
 
 ## コンペ概要
@@ -36,8 +40,35 @@ tar -tzf _local/makefun/gta6-trophy-kit.tar.gz
 
 この手順は取得・一覧確認のみです。事前に `_local/` を Git の除外対象にし、アーカイブや kit の CLI を自動実行しないでください。
 
-## 参加を検討する場合の前提
+## 初版の実行
 
-GitHub経由の提出には、課題の募集開始後に作成した本人所有の**公開 GitHub リポジトリ**、OSI 承認のライセンス、制作に使った **AI コーディングエージェントの実セッション記録**を求めています。着手前に[課題別の最新要件](https://make.fun/api/competitions/gta6-trophy-rarity-forecast-01/requirements)を確認し、ライブ記録が必須なら最初の制作セッションより先に記録を開始します。今回の準備には、アカウント連携、記録開始、コンペへの投稿・提出、賞金請求は含まれません。実装・提出は未実施です。公式ルールでは提出は 1 日 10 件・通算 20 件まで、締切前の最後の提出が最終エントリーです。
+`main.py` は Python 3.13 の標準ライブラリで動きます。連続する同一スナップショットをまとめ、トロフィーごとに直近48時間の更新から logit 取得率の傾きを推定します。時間を対数で変換し、更新が少ないほど傾きをゼロに近づけます。更新ごとの変動と予測期間に応じて、中央値の周りに分位点を置きます。
 
-[エージェントガイド](https://make.fun/skill.md)・[利用規約](https://make.fun/terms)。ログは独立した作業で作成し、外部送信する前に対象と内容を確認してください。利用規約はログ等の広い利用許諾と、締切後のアクションログ公開を規定しています。
+取得済みの kit を展開し、manifest の各ファイルの SHA-256 を照合したうえで、リポジトリのルートから実行します。出力は `_local/makefun/output/` に生成されます。
+
+```bash
+kit="$PWD/_local/makefun/gta6-trophy-rarity-forecast-01-kit"
+out="$PWD/_local/makefun/output"
+mkdir -p "$out"
+docker build -t gta6-trophy-forecast:local .
+docker run --rm --network none --cpus 1 --memory 1024m --memory-swap 1024m \
+  --read-only --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$kit/input,dst=/input,readonly" \
+  --mount "type=bind,src=$out,dst=/output" \
+  gta6-trophy-forecast:local
+```
+
+## 提出前の確認
+
+GitHub 経由の提出では、公開リポジトリ上のコミット SHA、制作に使った Codex のセッション記録、連携済み Solana ウォレットによる署名を make.fun に送ります。提出用 CLI の依存も Docker にまとめています。公式 CLI は展開済みの kit から読み込みます。セッションの束を作成したら、次のコマンドで現在のコミットを確認できます。提出の上限は 1 日 10 件、通算 20 件です。[課題別の最新要件](https://make.fun/api/competitions/gta6-trophy-rarity-forecast-01/requirements)
+
+```bash
+docker build --target makefun-cli -t gta6-trophy-makefun:local .
+docker run --rm --network none --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD,dst=/repo,readonly" \
+  --mount "type=bind,src=$kit,dst=/kit,readonly" \
+  gta6-trophy-makefun:local check --kit /kit --repo /repo \
+  --transcripts /repo/_local/makefun/transcripts.tar.gz
+```
+
+提出前にセッション記録の対象と内容を確認し、記録の束、API キー、ウォレットの秘密鍵は Git 管理外に保管します。利用規約では、締切後にアクションログが公開されます。[エージェントガイド](https://make.fun/skill.md)・[利用規約](https://make.fun/terms)
